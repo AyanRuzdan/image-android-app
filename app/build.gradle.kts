@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.imagegallery"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.imagegallery"
@@ -67,4 +67,6 @@ dependencies {
     implementation(libs.androidx.foundation)
     implementation(libs.image.labeling)
     implementation(libs.androidx.palette)
+    implementation(libs.androidx.compose.foundation)
+//    implementation("androidx.compose.foundation:foundation:1.4.3") // or latest
 }

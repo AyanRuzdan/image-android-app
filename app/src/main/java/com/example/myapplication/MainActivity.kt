@@ -2,10 +2,13 @@ package com.example.myapplication
 
 import android.content.Context
 import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
 import android.os.Bundle
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -23,14 +26,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
-import androidx.palette.graphics.Palette
-import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import androidx.exifinterface.media.ExifInterface
 import java.text.SimpleDateFormat
@@ -38,7 +38,8 @@ import java.util.*
 
 data class TaggedImage(
     val uri: Uri,
-    val tags: List<String>
+    val tags: List<String>,
+    val selectedTags: MutableList<String> = mutableStateListOf() // Add this line
 )
 
 class MainActivity : ComponentActivity() {
@@ -56,6 +57,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun ImageGridScreen() {
+    var isSelectionMode by remember { mutableStateOf(false) }
+    val selectedForDeletion = remember { mutableStateListOf<TaggedImage>() }
     val taggedImages = remember { mutableStateListOf<TaggedImage>() }
     val context = LocalContext.current
     var showDuplicateDialog by remember { mutableStateOf(false) }
@@ -81,13 +84,25 @@ fun ImageGridScreen() {
             .fillMaxSize()
             .padding(15.dp)
     ) {
-        Button(
-            onClick = { launcher.launch("image/*") },
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 10.dp)
+                .padding(bottom = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Upload Image")
+            Button(
+                onClick = { launcher.launch("image/*") }, modifier = Modifier.weight(1f)
+            ) {
+                Text("Upload Image")
+            }
+
+            Button(
+                onClick = { isSelectionMode = true },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Delete")
+            }
         }
 
         if (showDuplicateDialog) {
@@ -97,8 +112,7 @@ fun ImageGridScreen() {
                     TextButton(onClick = { showDuplicateDialog = false }) { Text("OK") }
                 },
                 title = { Text("Duplicate Image") },
-                text = { Text("This image is already uploaded.") }
-            )
+                text = { Text("This image is already uploaded.") })
         }
 
         LazyVerticalGrid(
@@ -106,252 +120,205 @@ fun ImageGridScreen() {
             contentPadding = PaddingValues(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.weight(1f)
         ) {
             items(taggedImages, key = { it.uri.toString() }) { tagged ->
-                Column(
+                Box(
                     modifier = Modifier.clickable {
-                        selectedImageForDialog = tagged
-                    }
-                ) {
+                        if (isSelectionMode) {
+                            if (selectedForDeletion.contains(tagged)) {
+                                selectedForDeletion.remove(tagged)
+                            } else {
+                                selectedForDeletion.add(tagged)
+                            }
+                        } else {
+                            selectedImageForDialog = tagged
+                        }
+                    }) {
                     Image(
                         painter = rememberAsyncImagePainter(tagged.uri),
-                        contentDescription = "Image with tags: ${tagged.tags.joinToString()}",
+                        contentDescription = "Image with tags",
                         modifier = Modifier.size(150.dp),
                         contentScale = ContentScale.Crop
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    if (isSelectionMode) {
+                        Checkbox(
+                            checked = selectedForDeletion.contains(tagged), onCheckedChange = {
+                                if (it) selectedForDeletion.add(tagged)
+                                else selectedForDeletion.remove(tagged)
+                            }, modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(4.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        if (isSelectionMode) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        taggedImages.removeAll(selectedForDeletion)
+                        selectedForDeletion.clear()
+                        isSelectionMode = false
+                    }, modifier = Modifier.weight(1f)
+                ) {
+                    Text("OK")
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        selectedForDeletion.clear()
+                        isSelectionMode = false
+                    }, modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel")
                 }
             }
         }
 
         selectedImageForDialog?.let { taggedImage ->
             FullScreenImageDialog(
-                taggedImage = taggedImage,
-                onDismissRequest = {
+                taggedImage = taggedImage, onDismissRequest = {
                     selectedImageForDialog = null
-                }
-            )
+                })
         }
     }
 }
 
 @Composable
 fun FullScreenImageDialog(
-    taggedImage: TaggedImage,
-    onDismissRequest: () -> Unit
+    taggedImage: TaggedImage, onDismissRequest: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        confirmButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text("Close")
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
+    AlertDialog(onDismissRequest = onDismissRequest, confirmButton = {
+        TextButton(onClick = onDismissRequest) {
+            Text("Done")
+        }
+    }, title = { Text("Select Tags") }, text = {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Image(
+                painter = rememberAsyncImagePainter(model = taggedImage.uri),
+                contentDescription = "Full screen image",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f),
+                contentScale = ContentScale.Fit
+            )
+
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Image(
-                    painter = rememberAsyncImagePainter(model = taggedImage.uri),
-                    contentDescription = "Full screen image",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f),
-                    contentScale = ContentScale.Fit
-                )
+                taggedImage.tags.forEach { tag ->
+                    val isSelected = taggedImage.selectedTags.contains(tag)
+                    FilterChip(selected = isSelected, onClick = {
+                        if (isSelected) {
+                            taggedImage.selectedTags.remove(tag)
+                        } else {
+                            taggedImage.selectedTags.add(tag)
+                        }
+                    }, label = { Text(tag) })
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (taggedImage.selectedTags.isNotEmpty()) {
                 Text(
-                    text = taggedImage.tags.joinToString(", "),
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis
+                    text = "Selected: ${taggedImage.selectedTags.joinToString()}",
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
         }
-    )
+    })
 }
 
+
 fun generateTagsFromImage(
-    context: Context,
-    imageUri: Uri,
-    onTagsReady: (List<String>) -> Unit
+    context: Context, imageUri: Uri, onTagsReady: (List<String>) -> Unit
 ) {
     try {
         val image = InputImage.fromFilePath(context, imageUri)
         val labeler = ImageLabeling.getClient(
-            ImageLabelerOptions.Builder()
-                .setConfidenceThreshold(0.5f) // Lowered threshold to get more labels
-                .build()
+            ImageLabelerOptions.Builder().setConfidenceThreshold(0.5f).build()
         )
 
-        labeler.process(image)
-            .addOnSuccessListener { labels ->
-                val tagList = mutableListOf<String>()
+        labeler.process(image).addOnSuccessListener { labels ->
+            val tagList = mutableListOf<String>()
 
-                // Add ML Kit labels (up to 15 to avoid overwhelming)
-                labels.take(15).forEach { label ->
-                    tagList.add(label.text.lowercase())
-                }
-
-                try {
-                    // Load bitmap for Palette and metadata
-                    val bitmap = if (Build.VERSION.SDK_INT < 28) {
-                        MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
-                    } else {
-                        val source = ImageDecoder.createSource(context.contentResolver, imageUri)
-                        ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
-                            decoder.isMutableRequired = true
-                            // Optionally, set other decoding options here
-                        }
-                    }
-
-
-                    // Extract multiple colors from Palette
-                    Palette.from(bitmap).generate { palette ->
-                        palette?.let {
-                            // Add dominant, vibrant, and muted colors
-                            val colorTags = mutableListOf<String>()
-                            listOf(
-                                it.getDominantColor(0xCCCCCC),
-                                it.getVibrantColor(0xCCCCCC),
-                                it.getMutedColor(0xCCCCCC),
-                                it.getLightVibrantColor(0xCCCCCC),
-                                it.getDarkVibrantColor(0xCCCCCC),
-                                it.getLightMutedColor(0xCCCCCC),
-                                it.getDarkMutedColor(0xCCCCCC)
-                            ).forEach { color ->
-                                color.let { c ->
-                                    val hexColor = String.format("#%06X", 0xFFFFFF and c)
-                                    val colorName = getColorNameFromHex(hexColor)
-                                    if (colorName !in colorTags) {
-                                        colorTags.add(colorName.lowercase())
-                                    }
-                                }
-                            }
-                            tagList.addAll(colorTags.take(5)) // Limit to 5 unique color tags
-                        }
-
-                        // Add image metadata tags
-                        val metadataTags = mutableListOf<String>()
-                        try {
-                            val exif =
-                                ExifInterface(context.contentResolver.openInputStream(imageUri)!!)
-                            exif.getAttribute(ExifInterface.TAG_DATETIME)?.let {
-                                val dateFormat = SimpleDateFormat("yyyy:MM:dd", Locale.US)
-                                val date = dateFormat.parse(it)?.let { date ->
-                                    SimpleDateFormat("yyyy", Locale.US).format(date)
-                                } ?: "unknown_date"
-                                metadataTags.add(date)
-                            }
-                            exif.getAttribute(ExifInterface.TAG_MAKE)?.let {
-                                metadataTags.add(it.lowercase().replace(" ", "_"))
-                            }
-                            exif.getAttribute(ExifInterface.TAG_MODEL)?.let {
-                                metadataTags.add(it.lowercase().replace(" ", "_"))
-                            }
-                        } catch (e: Exception) {
-                            Log.e("ExifError", "Error reading EXIF: ${e.message}")
-                        }
-
-                        // Add resolution tag
-                        bitmap?.let {
-                            val resolution = when {
-                                it.width * it.height > 1920 * 1080 -> "high_resolution"
-                                it.width * it.height > 1280 * 720 -> "medium_resolution"
-                                else -> "low_resolution"
-                            }
-                            metadataTags.add(resolution)
-                        }
-
-                        // Add file type tag
-                        val mimeType =
-                            context.contentResolver.getType(imageUri)?.lowercase() ?: "unknown"
-                        metadataTags.add(
-                            when {
-                                mimeType.contains("jpeg") -> "jpeg"
-                                mimeType.contains("png") -> "png"
-                                else -> "image"
-                            }
-                        )
-
-                        tagList.addAll(metadataTags.take(5)) // Limit to 5 metadata tags
-
-                        // Ensure at least 20 tags with fallback tags
-                        val fallbackTags = listOf(
-                            "photo", "image", "visual", "graphic", "media", "digital", "snapshot",
-                            "picture", "capture", "scene", "view", "moment", "frame", "shot",
-                            "exposure", "composition", "art", "detail", "texture", "pattern"
-                        )
-                        while (tagList.size < 20) {
-                            val remaining = 20 - tagList.size
-                            tagList.addAll(fallbackTags.take(remaining))
-                        }
-                        Log.d(
-                            "ImageTags",
-                            "$imageUri: ${tagList.distinct().take(20).joinToString(",")}"
-                        )
-                        onTagsReady(tagList.distinct().take(20)) // Ensure unique tags, max 20
-                    }
-                } catch (e: Exception) {
-                    Log.e("PaletteError", "Error generating color tags: ${e.message}")
-                    // Fallback if Palette fails
-                    tagList.add("colorful")
-                    onTagsReady(tagList.distinct().take(20))
-                }
+            // Add ML Kit labels (up to 15)
+            labels.take(15).forEach { label ->
+                tagList.add(label.text.lowercase())
             }
-            .addOnFailureListener { e ->
-                Log.e("MLKitError", "Error generating image labels: ${e.message}")
-                // Fallback tags if ML Kit fails
-                val fallbackTags = listOf(
-                    "unknown",
-                    "image",
-                    "photo",
-                    "visual",
-                    "graphic",
-                    "media",
-                    "digital",
-                    "snapshot",
-                    "picture",
-                    "capture",
-                    "scene",
-                    "view",
-                    "moment",
-                    "frame",
-                    "shot",
-                    "exposure",
-                    "composition",
-                    "art",
-                    "detail",
-                    "texture"
+
+            // Add metadata tags
+            try {
+                val metadataTags = mutableListOf<String>()
+                val exif = ExifInterface(context.contentResolver.openInputStream(imageUri)!!)
+                exif.getAttribute(ExifInterface.TAG_DATETIME)?.let {
+                    val dateFormat = SimpleDateFormat("yyyy:MM:dd", Locale.US)
+                    val date = dateFormat.parse(it)?.let { d ->
+                        SimpleDateFormat("yyyy", Locale.US).format(d)
+                    } ?: "unknown_date"
+                    metadataTags.add(date)
+                }
+                exif.getAttribute(ExifInterface.TAG_MAKE)?.let {
+                    metadataTags.add(it.lowercase().replace(" ", "_"))
+                }
+                exif.getAttribute(ExifInterface.TAG_MODEL)?.let {
+                    metadataTags.add(it.lowercase().replace(" ", "_"))
+                }
+
+                val bitmap = if (Build.VERSION.SDK_INT < 28) {
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
+                } else {
+                    val source = ImageDecoder.createSource(context.contentResolver, imageUri)
+                    ImageDecoder.decodeBitmap(source)
+                }
+
+                bitmap?.let {
+                    val resolution = when {
+                        it.width * it.height > 1920 * 1080 -> "high_resolution"
+                        it.width * it.height > 1280 * 720 -> "medium_resolution"
+                        else -> "low_resolution"
+                    }
+                    metadataTags.add(resolution)
+                }
+
+                val mimeType =
+                    context.contentResolver.getType(imageUri)?.lowercase() ?: "unknown"
+                metadataTags.add(
+                    when {
+                        mimeType.contains("jpeg") -> "jpeg"
+                        mimeType.contains("png") -> "png"
+                        else -> "image"
+                    }
                 )
-                onTagsReady(fallbackTags.take(20))
+
+                tagList.addAll(metadataTags)
+            } catch (e: Exception) {
+                Log.e("ExifError", "Error reading EXIF: ${e.message}")
             }
+
+            onTagsReady(tagList.distinct())
+        }.addOnFailureListener { e ->
+            Log.e("MLKitError", "Error generating image labels: ${e.message}")
+            onTagsReady(emptyList())
+        }
+
     } catch (e: Exception) {
         Log.e("InputImageError", "Error creating InputImage: ${e.message}")
-        onTagsReady(
-            listOf(
-                "unknown", "image", "photo", "visual", "graphic", "media", "digital",
-                "snapshot", "picture", "capture", "scene", "view", "moment", "frame", "shot",
-                "exposure", "composition", "art", "detail", "texture"
-            )
-        )
-    }
-}
-
-fun getColorNameFromHex(hex: String): String {
-    return when (hex.uppercase()) {
-        "#FFFFFF" -> "white"
-        "#000000" -> "black"
-        "#FF0000" -> "red"
-        "#00FF00" -> "green"
-        "#0000FF" -> "blue"
-        "#FFFF00" -> "yellow"
-        "#FFA500" -> "orange"
-        "#800080" -> "purple"
-        "#FFC0CB" -> "pink"
-        "#A52A2A" -> "brown"
-        "#808080" -> "gray"
-        else -> "colorful"
+        onTagsReady(emptyList())
     }
 }
