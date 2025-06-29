@@ -1,11 +1,11 @@
 package com.example.myapplication
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import android.os.Bundle
 import android.os.Build
-import android.provider.MediaStore
 import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
@@ -280,12 +280,16 @@ fun generateTagsFromImage(
                     metadataTags.add(it.lowercase().replace(" ", "_"))
                 }
 
-                val bitmap = if (Build.VERSION.SDK_INT < 28) {
-                    MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
-                } else {
+                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    // API 28+
                     val source = ImageDecoder.createSource(context.contentResolver, imageUri)
                     ImageDecoder.decodeBitmap(source)
+                } else {
+                    // Below API 28
+                    val inputStream = context.contentResolver.openInputStream(imageUri)
+                    BitmapFactory.decodeStream(inputStream)
                 }
+
 
                 bitmap?.let {
                     val resolution = when {
