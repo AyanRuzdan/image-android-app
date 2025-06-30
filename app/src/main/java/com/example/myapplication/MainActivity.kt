@@ -91,17 +91,20 @@ fun ImageGridScreen() {
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                onClick = { launcher.launch("image/*") }, modifier = Modifier.weight(1f)
+                onClick = { launcher.launch("image/*") },
+                modifier = Modifier.weight(1f)
             ) {
                 Text("Upload Image")
             }
 
-            Button(
-                onClick = { isSelectionMode = true },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("Delete")
+            if (taggedImages.isNotEmpty()) {
+                Button(
+                    onClick = { isSelectionMode = true },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
             }
         }
 
