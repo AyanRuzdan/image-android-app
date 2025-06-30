@@ -72,9 +72,6 @@ fun ImageGridScreen() {
             if (alreadyAdded) {
                 showDuplicateDialog = true
             } else {
-//                generateTagsFromImage(context, selectedUri) { tags ->
-//                    taggedImages.add(TaggedImage(uri = selectedUri, tags = tags))
-//                }
                 generateTagsFromImage(context, selectedUri) { tags ->
                     val newTagged = TaggedImage(uri = selectedUri, tags = tags)
                     taggedImages.add(newTagged)
@@ -131,37 +128,6 @@ fun ImageGridScreen() {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.weight(1f)
         ) {
-//            items(taggedImages, key = { it.uri.toString() }) { tagged ->
-//                Box(
-//                    modifier = Modifier.clickable {
-//                        if (isSelectionMode) {
-//                            if (selectedForDeletion.contains(tagged)) {
-//                                selectedForDeletion.remove(tagged)
-//                            } else {
-//                                selectedForDeletion.add(tagged)
-//                            }
-//                        } else {
-//                            selectedImageForDialog = tagged
-//                        }
-//                    }) {
-//                    Image(
-//                        painter = rememberAsyncImagePainter(tagged.uri),
-//                        contentDescription = "Image with tags",
-//                        modifier = Modifier.size(150.dp),
-//                        contentScale = ContentScale.Crop
-//                    )
-//                    if (isSelectionMode) {
-//                        Checkbox(
-//                            checked = selectedForDeletion.contains(tagged), onCheckedChange = {
-//                                if (it) selectedForDeletion.add(tagged)
-//                                else selectedForDeletion.remove(tagged)
-//                            }, modifier = Modifier
-//                                .align(Alignment.TopEnd)
-//                                .padding(4.dp)
-//                        )
-//                    }
-//                }
-//            }
             items(taggedImages, key = { it.uri.toString() }) { tagged ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
@@ -240,57 +206,6 @@ fun ImageGridScreen() {
     }
 }
 
-//@Composable
-//fun FullScreenImageDialog(
-//    taggedImage: TaggedImage, onDismissRequest: () -> Unit
-//) {
-//    AlertDialog(onDismissRequest = onDismissRequest, confirmButton = {
-//        TextButton(onClick = onDismissRequest) {
-//            Text("Done")
-//        }
-//    }, title = { Text("Select Tags") }, text = {
-//        Column(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .padding(8.dp),
-//            verticalArrangement = Arrangement.spacedBy(12.dp)
-//        ) {
-//            Image(
-//                painter = rememberAsyncImagePainter(model = taggedImage.uri),
-//                contentDescription = "Full screen image",
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .aspectRatio(1f),
-//                contentScale = ContentScale.Fit
-//            )
-//
-//            FlowRow(
-//                horizontalArrangement = Arrangement.spacedBy(8.dp),
-//                verticalArrangement = Arrangement.spacedBy(8.dp)
-//            ) {
-//                taggedImage.tags.forEach { tag ->
-//                    val isSelected = taggedImage.selectedTags.contains(tag)
-//                    FilterChip(selected = isSelected, onClick = {
-//                        if (isSelected) {
-//                            taggedImage.selectedTags.remove(tag)
-//                        } else {
-//                            taggedImage.selectedTags.add(tag)
-//                        }
-//                    }, label = { Text(tag) })
-//                }
-//            }
-//
-//            Spacer(modifier = Modifier.height(8.dp))
-//
-//            if (taggedImage.selectedTags.isNotEmpty()) {
-//                Text(
-//                    text = "Selected: ${taggedImage.selectedTags.joinToString()}",
-//                    style = MaterialTheme.typography.bodyMedium
-//                )
-//            }
-//        }
-//    })
-//}
 @Composable
 fun FullScreenImageDialog(
     taggedImage: TaggedImage,
