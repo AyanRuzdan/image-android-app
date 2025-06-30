@@ -196,15 +196,6 @@ fun ImageGridScreen() {
                         }
                     }
 
-                    if (tagged.selectedTags.isNotEmpty()) {
-                        Text(
-                            text = tagged.selectedTags.joinToString(", "),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 4.dp),
-                            maxLines = 2
-                        )
-                    }
-
                     TextButton(onClick = { selectedImageForDialog = tagged }) {
                         Text("Edit")
                     }
