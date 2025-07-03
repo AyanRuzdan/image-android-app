@@ -171,8 +171,13 @@ fun MainImageGridContent(modifier: Modifier = Modifier) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(modifier = Modifier.clickable {
                         if (isSelectionMode) {
-                            if (tagged in selectedForDeletion) selectedForDeletion.remove(tagged)
-                            else selectedForDeletion.add(tagged)
+                            if (tagged in selectedForDeletion) {
+                                selectedForDeletion.remove(tagged)
+                            } else {
+                                selectedForDeletion.add(tagged)
+                            }
+                        } else {
+                            selectedImageForDialog = tagged
                         }
                     }) {
                         Image(
