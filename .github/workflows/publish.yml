@@ -33,5 +33,5 @@ jobs:
         with:
           files: app/build/outputs/apk/release/*.apk
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 👈 default GitHub token (no need to set custom token unless needed)
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}  # 👈 default GitHub token (no need to set custom token unless needed)
 
