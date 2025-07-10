@@ -2,17 +2,18 @@ name: Publish Release APK
 
 on:
   push:
-    tags: [ "*" ]  # Triggers when a Git tag is pushed
+    tags:
+      - "*"  # Triggers on any tag push
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout full git history
+      - name: Checkout full repo
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # ✅ Important! Ensures .git is available in Docker container
+          fetch-depth: 0  # 👈 Required to include .git for tag-based releases
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3
@@ -24,15 +25,13 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Release APK
+      - name: Build release APK
         run: ./gradlew assembleRelease
 
-      - name: Publish APK to GitHub Releases
-        uses: alsrb968/action-release-apk@master
+      - name: Upload APK to GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
-          releaseName: Release ${{ github.ref_name }}  # optional
-          files: app/build/outputs/apk/release/*.apk   # optional if your APK isn't in default folder
+          files: app/build/outputs/apk/release/*.apk
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
-          APP_FOLDER: app
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 👈 default GitHub token (no need to set custom token unless needed)
 
