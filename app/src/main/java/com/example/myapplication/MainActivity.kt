@@ -3,6 +3,7 @@ package com.example.myapplication
 import android.content.Context
 import androidx.compose.foundation.combinedClickable
 import android.net.Uri
+import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import android.os.Bundle
 import android.util.Log
@@ -16,6 +17,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -33,8 +35,10 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
+import java.time.LocalTime
 
 data class TaggedImage(
     val uri: Uri,
@@ -52,6 +56,7 @@ sealed class SideNavItem(val label: String, val icon: ImageVector) {
 
 
 class MainActivity : ComponentActivity() {
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -66,6 +71,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImageGridScreen() {
@@ -74,7 +80,11 @@ fun ImageGridScreen() {
     var selectedTab by remember { mutableStateOf<SideNavItem>(SideNavItem.Home) }
 
     val drawerItems = listOf(
-        SideNavItem.Home, SideNavItem.Search, SideNavItem.Cart, SideNavItem.Profile, SideNavItem.OOTD
+        SideNavItem.Home,
+        SideNavItem.Search,
+        SideNavItem.Cart,
+        SideNavItem.Profile,
+        SideNavItem.OOTD
     )
 
     ModalNavigationDrawer(
@@ -107,7 +117,19 @@ fun ImageGridScreen() {
                     }
                 })
             }) { innerPadding ->
-            MainImageGridContent(modifier = Modifier.padding(innerPadding))
+            when (selectedTab) {
+                is SideNavItem.Home -> MainImageGridContent(modifier = Modifier.padding(innerPadding))
+                is SideNavItem.OOTD -> TodayOutfitScreen()
+                else -> Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Coming soon...")
+                }
+            }
+
         }
     }
 }
@@ -330,6 +352,28 @@ fun FullScreenImageDialog(
             Spacer(modifier = Modifier.height(8.dp))
         }
     })
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun TodayOutfitScreen() {
+    var currentTime by remember { mutableStateOf(LocalTime.now().toString()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentTime = LocalTime.now().toString().substringBeforeLast(".") // Remove milliseconds
+            kotlinx.coroutines.delay(1000) // Update every second
+        }
+    }
+    Box(
+        modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Current Time: $currentTime",
+            style = MaterialTheme.typography.headlineMedium,
+            textAlign = TextAlign.Center
+        )
+    }
 }
 
 fun generateTagsFromImage(
