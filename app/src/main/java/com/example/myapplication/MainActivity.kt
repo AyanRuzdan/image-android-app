@@ -1,25 +1,22 @@
 package com.example.myapplication
 
 import android.content.Context
-import android.graphics.BitmapFactory
+import androidx.compose.foundation.combinedClickable
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import android.os.Bundle
-import android.os.Build
 import android.util.Log
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
 import androidx.activity.ComponentActivity
-import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -35,11 +32,9 @@ import coil.compose.rememberAsyncImagePainter
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
-import android.graphics.ImageDecoder
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.exifinterface.media.ExifInterface
-import java.text.SimpleDateFormat
-import java.util.*
+import com.example.myapplication.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.launch
 
 data class TaggedImage(
     val uri: Uri,
@@ -47,11 +42,12 @@ data class TaggedImage(
     val selectedTags: MutableList<String> = mutableStateListOf()
 )
 
-sealed class BottomNavItem(val label: String, val icon: ImageVector) {
-    object Home : BottomNavItem("Home", Icons.Default.Home)
-    object Search : BottomNavItem("Search", Icons.Default.Search)
-    object Cart : BottomNavItem("Cart", Icons.Default.ShoppingCart)
-    object Profile : BottomNavItem("Profile", Icons.Default.Person)
+sealed class SideNavItem(val label: String, val icon: ImageVector) {
+    object Home : SideNavItem("Home", Icons.Default.Home)
+    object Search : SideNavItem("Search", Icons.Default.Search)
+    object Cart : SideNavItem("Cart", Icons.Default.ShoppingCart)
+    object Profile : SideNavItem("Profile", Icons.Default.Person)
+    object OOTD : SideNavItem("Today's Outfit", Icons.Default.DateRange)
 }
 
 
@@ -59,8 +55,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            MyApplicationTheme { // ✅ Now resolved
+                Surface(
+                    modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background
+                ) {
                     ImageGridScreen()
                 }
             }
@@ -68,24 +66,49 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImageGridScreen() {
-    var selectedTab by remember { mutableStateOf<BottomNavItem>(BottomNavItem.Home) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var selectedTab by remember { mutableStateOf<SideNavItem>(SideNavItem.Home) }
 
-    Scaffold(
-        bottomBar = {
-            CurvedBottomBar(
-                selectedItem = selectedTab,
-                onItemSelected = { selectedTab = it },
-                onCenterButtonClick = {
-                    // Handle FAB click here
+    val drawerItems = listOf(
+        SideNavItem.Home, SideNavItem.Search, SideNavItem.Cart, SideNavItem.Profile, SideNavItem.OOTD
+    )
+
+    ModalNavigationDrawer(
+        drawerState = drawerState, drawerContent = {
+            ModalDrawerSheet {
+                Spacer(modifier = Modifier.height(16.dp))
+                drawerItems.forEach { item ->
+                    NavigationDrawerItem(
+                        label = { Text(item.label) },
+                        selected = selectedTab::class == item::class,
+                        onClick = {
+                            selectedTab = item
+                            scope.launch { drawerState.close() }
+                        },
+                        icon = {
+                            Icon(item.icon, contentDescription = item.label)
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
                 }
-            )
-        },
-        floatingActionButton = {},
-        floatingActionButtonPosition = FabPosition.Center
-    ) { innerPadding ->
-        MainImageGridContent(Modifier.padding(innerPadding))
+            }
+        }) {
+        Scaffold(
+            topBar = {
+                TopAppBar(title = { Text("Smart Image Tagger") }, navigationIcon = {
+                    IconButton(onClick = {
+                        scope.launch { drawerState.open() }
+                    }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu")
+                    }
+                })
+            }) { innerPadding ->
+            MainImageGridContent(modifier = Modifier.padding(innerPadding))
+        }
     }
 }
 
@@ -97,6 +120,13 @@ fun MainImageGridContent(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var showDuplicateDialog by remember { mutableStateOf(false) }
     var selectedImageForDialog by remember { mutableStateOf<TaggedImage?>(null) }
+    fun toggleSelection(tagged: TaggedImage) {
+        if (tagged in selectedForDeletion) {
+            selectedForDeletion.remove(tagged)
+        } else {
+            selectedForDeletion.add(tagged)
+        }
+    }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -128,8 +158,7 @@ fun MainImageGridContent(modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                onClick = { launcher.launch("image/*") },
-                modifier = Modifier.weight(1f)
+                onClick = { launcher.launch("image/*") }, modifier = Modifier.weight(1f)
             ) {
                 Text("Upload Image")
             }
@@ -155,8 +184,7 @@ fun MainImageGridContent(modifier: Modifier = Modifier) {
                     }
                 },
                 title = { Text("Duplicate Image") },
-                text = { Text("This image is already uploaded.") }
-            )
+                text = { Text("This image is already uploaded.") })
         }
 
         // Grid
@@ -169,17 +197,18 @@ fun MainImageGridContent(modifier: Modifier = Modifier) {
         ) {
             items(taggedImages, key = { it.uri.toString() }) { tagged ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(modifier = Modifier.clickable {
+                    Box(modifier = Modifier.combinedClickable(onClick = {
                         if (isSelectionMode) {
-                            if (tagged in selectedForDeletion) {
-                                selectedForDeletion.remove(tagged)
-                            } else {
-                                selectedForDeletion.add(tagged)
-                            }
+                            toggleSelection(tagged)
                         } else {
                             selectedImageForDialog = tagged
                         }
-                    }) {
+                    }, onLongClick = {
+                        if (!isSelectionMode) {
+                            isSelectionMode = true
+                            selectedForDeletion.add(tagged)
+                        }
+                    })) {
                         Image(
                             painter = rememberAsyncImagePainter(tagged.uri),
                             contentDescription = "Image with tags",
@@ -189,12 +218,10 @@ fun MainImageGridContent(modifier: Modifier = Modifier) {
 
                         if (isSelectionMode) {
                             Checkbox(
-                                checked = tagged in selectedForDeletion,
-                                onCheckedChange = {
+                                checked = tagged in selectedForDeletion, onCheckedChange = {
                                     if (it) selectedForDeletion.add(tagged)
                                     else selectedForDeletion.remove(tagged)
-                                },
-                                modifier = Modifier
+                                }, modifier = Modifier
                                     .align(Alignment.TopEnd)
                                     .padding(4.dp)
                             )
@@ -216,8 +243,7 @@ fun MainImageGridContent(modifier: Modifier = Modifier) {
                         taggedImages.removeAll(selectedForDeletion)
                         selectedForDeletion.clear()
                         isSelectionMode = false
-                    },
-                    modifier = Modifier.weight(1f)
+                    }, modifier = Modifier.weight(1f)
                 ) {
                     Text("OK")
                 }
@@ -226,8 +252,7 @@ fun MainImageGridContent(modifier: Modifier = Modifier) {
                     onClick = {
                         selectedForDeletion.clear()
                         isSelectionMode = false
-                    },
-                    modifier = Modifier.weight(1f)
+                    }, modifier = Modifier.weight(1f)
                 ) {
                     Text("Cancel")
                 }
@@ -237,153 +262,78 @@ fun MainImageGridContent(modifier: Modifier = Modifier) {
         // Tag Dialog
         selectedImageForDialog?.let {
             FullScreenImageDialog(
-                taggedImage = it,
-                onDismissRequest = { selectedImageForDialog = null }
-            )
-        }
-    }
-}
-
-@Composable
-fun CurvedBottomBar(
-    selectedItem: BottomNavItem,
-    onItemSelected: (BottomNavItem) -> Unit,
-    onCenterButtonClick: () -> Unit
-) {
-    val items = listOf(
-        BottomNavItem.Home,
-        BottomNavItem.Search,
-        BottomNavItem.Cart,
-        BottomNavItem.Profile
-    )
-
-    Box {
-        BottomAppBar(
-            containerColor = MaterialTheme.colorScheme.surface,
-            tonalElevation = 8.dp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-        ) {
-            items.chunked(2).forEachIndexed { chunkIndex, chunk ->
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    chunk.forEach { item ->
-                        NavigationBarItem(
-                            selected = selectedItem::class == item::class,
-                            onClick = { onItemSelected(item) },
-                            icon = {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = item.label
-                                )
-                            },
-                            label = { Text(item.label) }
-                        )
-                    }
-                }
-
-                if (chunkIndex == 0) {
-                    Spacer(modifier = Modifier.width(56.dp))
-                }
-            }
-        }
-
-        FloatingActionButton(
-            onClick = onCenterButtonClick,
-            shape = CircleShape,
-            containerColor = MaterialTheme.colorScheme.primary,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = (-28).dp)
-        ) {
-            Icon(imageVector = Icons.Default.Add, contentDescription = "Upload")
+                taggedImage = it, onDismissRequest = { selectedImageForDialog = null })
         }
     }
 }
 
 @Composable
 fun FullScreenImageDialog(
-    taggedImage: TaggedImage,
-    onDismissRequest: () -> Unit
+    taggedImage: TaggedImage, onDismissRequest: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        confirmButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text("Done")
-            }
-        },
-        title = { Text("Select Tags") },
-        text = {
-            Column(
+    AlertDialog(onDismissRequest = onDismissRequest, confirmButton = {
+        TextButton(onClick = onDismissRequest) {
+            Text("Done")
+        }
+    }, title = { Text("Select Tags") }, text = {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Image(
+                painter = rememberAsyncImagePainter(model = taggedImage.uri),
+                contentDescription = "Full screen image",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Image(
-                    painter = rememberAsyncImagePainter(model = taggedImage.uri),
-                    contentDescription = "Full screen image",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f),
-                    contentScale = ContentScale.Fit
-                )
+                    .aspectRatio(1f),
+                contentScale = ContentScale.Fit
+            )
 
-                val (selected, unselected) = taggedImage.tags.partition {
-                    taggedImage.selectedTags.contains(it)
-                }
+            val (selected, unselected) = taggedImage.tags.partition {
+                taggedImage.selectedTags.contains(it)
+            }
 
-                if (selected.isNotEmpty()) {
-                    Text("Selected Tags")
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        selected.forEach { tag ->
-                            FilterChip(
-                                selected = true,
-                                onClick = { taggedImage.selectedTags.remove(tag) },
-                                label = { Text(tag) }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                if (unselected.isNotEmpty()) {
-                    Text("Available Tags")
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        unselected.forEach { tag ->
-                            FilterChip(
-                                selected = false,
-                                onClick = { taggedImage.selectedTags.add(tag) },
-                                label = { Text(tag) }
-                            )
-                        }
+            if (selected.isNotEmpty()) {
+                Text("Selected Tags")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    selected.forEach { tag ->
+                        FilterChip(
+                            selected = true,
+                            onClick = { taggedImage.selectedTags.remove(tag) },
+                            label = { Text(tag) })
                     }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
             }
+
+            if (unselected.isNotEmpty()) {
+                Text("Available Tags")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    unselected.forEach { tag ->
+                        FilterChip(
+                            selected = false,
+                            onClick = { taggedImage.selectedTags.add(tag) },
+                            label = { Text(tag) })
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
         }
-    )
+    })
 }
 
 fun generateTagsFromImage(
-    context: Context,
-    imageUri: Uri,
-    onTagsReady: (List<String>) -> Unit
+    context: Context, imageUri: Uri, onTagsReady: (List<String>) -> Unit
 ) {
     try {
         val image = InputImage.fromFilePath(context, imageUri)
@@ -391,68 +341,13 @@ fun generateTagsFromImage(
             ImageLabelerOptions.Builder().setConfidenceThreshold(0.5f).build()
         )
 
-        labeler.process(image)
-            .addOnSuccessListener { labels ->
-                val tagList = labels.take(15).map { it.text.lowercase() }.toMutableList()
-
-                try {
-                    val metadataTags = mutableListOf<String>()
-                    val exif = ExifInterface(context.contentResolver.openInputStream(imageUri)!!)
-
-                    exif.getAttribute(ExifInterface.TAG_DATETIME)?.let {
-                        val dateFormat = SimpleDateFormat("yyyy:MM:dd", Locale.US)
-                        val year = dateFormat.parse(it)?.let { d ->
-                            SimpleDateFormat("yyyy", Locale.US).format(d)
-                        } ?: "unknown_date"
-                        metadataTags.add(year)
-                    }
-
-                    exif.getAttribute(ExifInterface.TAG_MAKE)?.let {
-                        metadataTags.add(it.lowercase().replace(" ", "_"))
-                    }
-
-                    exif.getAttribute(ExifInterface.TAG_MODEL)?.let {
-                        metadataTags.add(it.lowercase().replace(" ", "_"))
-                    }
-
-                    val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        val source = ImageDecoder.createSource(context.contentResolver, imageUri)
-                        ImageDecoder.decodeBitmap(source)
-                    } else {
-                        val inputStream = context.contentResolver.openInputStream(imageUri)
-                        BitmapFactory.decodeStream(inputStream)
-                    }
-
-                    bitmap?.let {
-                        val resolution = when {
-                            it.width * it.height > 1920 * 1080 -> "high_resolution"
-                            it.width * it.height > 1280 * 720 -> "medium_resolution"
-                            else -> "low_resolution"
-                        }
-                        metadataTags.add(resolution)
-                    }
-
-                    val mimeType =
-                        context.contentResolver.getType(imageUri)?.lowercase() ?: "unknown"
-                    metadataTags.add(
-                        when {
-                            mimeType.contains("jpeg") -> "jpeg"
-                            mimeType.contains("png") -> "png"
-                            else -> "image"
-                        }
-                    )
-
-                    tagList.addAll(metadataTags)
-                } catch (e: Exception) {
-                    Log.e("ExifError", "Error reading EXIF: ${e.message}")
-                }
-
-                onTagsReady(tagList.distinct())
-            }
-            .addOnFailureListener {
-                Log.e("MLKitError", "Error generating image labels: ${it.message}")
-                onTagsReady(emptyList())
-            }
+        labeler.process(image).addOnSuccessListener { labels ->
+            val tagList = labels.take(15).map { it.text.lowercase() }.toMutableList()
+            onTagsReady(tagList.distinct())
+        }.addOnFailureListener {
+            Log.e("MLKitError", "Error generating image labels: ${it.message}")
+            onTagsReady(emptyList())
+        }
     } catch (e: Exception) {
         Log.e("InputImageError", "Error creating InputImage: ${e.message}")
         onTagsReady(emptyList())
