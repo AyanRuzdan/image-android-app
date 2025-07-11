@@ -19,6 +19,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -35,10 +36,12 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.style.TextAlign
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
-import java.time.LocalTime
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+
 
 data class TaggedImage(
     val uri: Uri,
@@ -119,7 +122,7 @@ fun ImageGridScreen() {
             }) { innerPadding ->
             when (selectedTab) {
                 is SideNavItem.Home -> MainImageGridContent(modifier = Modifier.padding(innerPadding))
-                is SideNavItem.OOTD -> TodayOutfitScreen()
+                is SideNavItem.OOTD -> TodayOutfitScreen(modifier = Modifier.padding(innerPadding))
                 else -> Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -267,7 +270,7 @@ fun MainImageGridContent(modifier: Modifier = Modifier) {
                         isSelectionMode = false
                     }, modifier = Modifier.weight(1f)
                 ) {
-                    Text("OK")
+                    Text("Delete")
                 }
 
                 OutlinedButton(
@@ -354,25 +357,140 @@ fun FullScreenImageDialog(
     })
 }
 
+//@RequiresApi(Build.VERSION_CODES.O)
+//@Composable
+//fun TodayOutfitScreen() {
+//    var currentTime by remember { mutableStateOf(LocalTime.now().toString()) }
+//
+//    LaunchedEffect(Unit) {
+//        while (true) {
+//            currentTime = LocalTime.now().toString().substringBeforeLast(".") // Remove milliseconds
+//            kotlinx.coroutines.delay(1000) // Update every second
+//        }
+//    }
+//    Box(
+//        modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
+//    ) {
+//        Text(
+//            text = "Current Time: $currentTime",
+//            style = MaterialTheme.typography.headlineMedium,
+//            textAlign = TextAlign.Center
+//        )
+//    }
+//}
+@OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun TodayOutfitScreen() {
-    var currentTime by remember { mutableStateOf(LocalTime.now().toString()) }
+fun TodayOutfitScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val events = listOf("Office", "Gym", "Date", "Outing", "Dinner")
+    var selectedEvent by remember { mutableStateOf(events.first()) }
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            currentTime = LocalTime.now().toString().substringBeforeLast(".") // Remove milliseconds
-            kotlinx.coroutines.delay(1000) // Update every second
-        }
-    }
-    Box(
-        modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
+    var selectedDateTime by remember { mutableStateOf(LocalDateTime.now()) }
+
+    val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+
+    var upperWearUri by remember { mutableStateOf<Uri?>(null) }
+    var lowerWearUri by remember { mutableStateOf<Uri?>(null) }
+
+    val upperWearPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri -> if (uri != null) upperWearUri = uri }
+
+    val lowerWearPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri -> if (uri != null) lowerWearUri = uri }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "Current Time: $currentTime",
-            style = MaterialTheme.typography.headlineMedium,
-            textAlign = TextAlign.Center
+        Text("Log Today's Outfit", style = MaterialTheme.typography.headlineSmall)
+
+        // Event Dropdown
+        ExposedDropdownMenuBox(
+            expanded = false, onExpandedChange = {}) {
+            var expanded by remember { mutableStateOf(false) }
+            OutlinedTextField(
+                value = selectedEvent,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Event") },
+                trailingIcon = {
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        Modifier.clickable { expanded = true })
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                events.forEach { event ->
+                    DropdownMenuItem(text = { Text(event) }, onClick = {
+                        selectedEvent = event
+                        expanded = false
+                    })
+                }
+            }
+        }
+
+        // Date and Time
+        OutlinedTextField(
+            value = selectedDateTime.format(dateFormatter),
+            onValueChange = {},
+            label = { Text("Date & Time") },
+            readOnly = true,
+            trailingIcon = {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = "Use current time",
+                    Modifier.clickable {
+                        selectedDateTime = LocalDateTime.now()
+                    })
+            },
+            modifier = Modifier.fillMaxWidth()
         )
+
+        // Upper Wear Picker
+        Button(onClick = { upperWearPicker.launch("image/*") }) {
+            Text("Select Upper Wear")
+        }
+        upperWearUri?.let {
+            Image(
+                painter = rememberAsyncImagePainter(it),
+                contentDescription = "Upper Wear",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        // Lower Wear Picker
+        Button(onClick = { lowerWearPicker.launch("image/*") }) {
+            Text("Select Lower Wear")
+        }
+        lowerWearUri?.let {
+            Image(
+                painter = rememberAsyncImagePainter(it),
+                contentDescription = "Lower Wear",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        // Submit
+        Button(
+            onClick = {
+                // TODO: Save entry
+            }, enabled = upperWearUri != null && lowerWearUri != null
+        ) {
+            Text("Save Outfit")
+        }
     }
 }
 
