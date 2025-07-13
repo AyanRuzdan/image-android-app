@@ -1,48 +1,101 @@
 package com.example.myapplication
 
 import android.content.Context
-import androidx.compose.foundation.combinedClickable
 import android.net.Uri
-import java.time.*
 import android.os.Build
-import androidx.compose.foundation.layout.Arrangement
 import android.os.Bundle
 import android.util.Log
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.Alignment
 import androidx.activity.ComponentActivity
-import androidx.compose.material3.TopAppBar
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DividerDefaults
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
+import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
-import androidx.compose.ui.graphics.vector.ImageVector
-import com.example.myapplication.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-
+data class OutfitLog(
+    val date: String, val event: String, val upper: Uri?, val lower: Uri?
+)
 
 data class TaggedImage(
     val uri: Uri,
@@ -79,6 +132,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImageGridScreen() {
+    val outfitLogList = remember { mutableStateListOf<OutfitLog>() }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var selectedTab by remember { mutableStateOf<SideNavItem>(SideNavItem.Home) }
@@ -123,7 +177,14 @@ fun ImageGridScreen() {
             }) { innerPadding ->
             when (selectedTab) {
                 is SideNavItem.Home -> MainImageGridContent(modifier = Modifier.padding(innerPadding))
-                is SideNavItem.OOTD -> TodayOutfitScreen(modifier = Modifier.padding(innerPadding))
+                is SideNavItem.Profile -> ProfileScreen(
+                    modifier = Modifier.padding(innerPadding), outfitLogs = outfitLogList
+                )
+
+                is SideNavItem.OOTD -> TodayOutfitScreen(
+                    modifier = Modifier.padding(innerPadding), outfitLogs = outfitLogList
+                )
+
                 else -> Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -358,32 +419,15 @@ fun FullScreenImageDialog(
     })
 }
 
-//@RequiresApi(Build.VERSION_CODES.O)
-//@Composable
-//fun TodayOutfitScreen() {
-//    var currentTime by remember { mutableStateOf(LocalTime.now().toString()) }
-//
-//    LaunchedEffect(Unit) {
-//        while (true) {
-//            currentTime = LocalTime.now().toString().substringBeforeLast(".") // Remove milliseconds
-//            kotlinx.coroutines.delay(1000) // Update every second
-//        }
-//    }
-//    Box(
-//        modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
-//    ) {
-//        Text(
-//            text = "Current Time: $currentTime",
-//            style = MaterialTheme.typography.headlineMedium,
-//            textAlign = TextAlign.Center
-//        )
-//    }
-//}
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun TodayOutfitScreen(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
+fun TodayOutfitScreen(
+    modifier: Modifier = Modifier, outfitLogs: SnapshotStateList<OutfitLog>
+) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
     val events = listOf("Office", "Gym", "Date", "Outing", "Dinner")
     var selectedEvent by remember { mutableStateOf(events.first()) }
 
@@ -402,125 +446,154 @@ fun TodayOutfitScreen(modifier: Modifier = Modifier) {
     ) { uri -> if (uri != null) lowerWearUri = uri }
 
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        initialSelectedDateMillis = selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant()
+            .toEpochMilli()
     )
     var showDatePicker by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text("Log Today's Outfit", style = MaterialTheme.typography.headlineSmall)
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
+        Column(
+            modifier = modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("Log Today's Outfit", style = MaterialTheme.typography.headlineSmall)
 
-        // Event Dropdown
-        ExposedDropdownMenuBox(expanded = false, onExpandedChange = {}) {
-            var expanded by remember { mutableStateOf(false) }
-            OutlinedTextField(
-                value = selectedEvent,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Event") },
-                trailingIcon = {
-                    Icon(
-                        Icons.Default.ArrowDropDown,
-                        contentDescription = null,
-                        Modifier.clickable { expanded = true })
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                events.forEach { event ->
-                    DropdownMenuItem(text = { Text(event) }, onClick = {
-                        selectedEvent = event
-                        expanded = false
-                    })
+            // Event Dropdown
+            ExposedDropdownMenuBox(
+                expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                OutlinedTextField(
+                    value = selectedEvent,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Event") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                    },
+                    modifier = Modifier
+                        .menuAnchor() // 🔑 do not remove
+                        .fillMaxWidth()
+                )
+
+                DropdownMenu(
+                    expanded = expanded, onDismissRequest = { expanded = false }) {
+                    events.forEach { event ->
+                        DropdownMenuItem(text = { Text(event) }, onClick = {
+                            selectedEvent = event
+                            expanded = false
+                        })
+                    }
                 }
             }
-        }
 
-        // Calendar Date Picker
-        Button(onClick = { showDatePicker = true }) {
-            Text("Select Date: $formattedDate")
-        }
+            // Calendar Date Picker
+            Button(onClick = { showDatePicker = true }) {
+                Text("Select Date: $formattedDate")
+            }
 
-        if (showDatePicker) {
-            DatePickerDialog(
-                onDismissRequest = { showDatePicker = false },
-                confirmButton = {
+            if (showDatePicker) {
+                DatePickerDialog(onDismissRequest = { showDatePicker = false }, confirmButton = {
                     TextButton(onClick = {
                         datePickerState.selectedDateMillis?.let { millis ->
-                            selectedDate = Instant.ofEpochMilli(millis)
-                                .atZone(ZoneId.systemDefault())
-                                .toLocalDate()
+                            selectedDate =
+                                Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
+                                    .toLocalDate()
                         }
                         showDatePicker = false
                     }) {
                         Text("OK")
                     }
-                },
-                dismissButton = {
+                }, dismissButton = {
                     TextButton(onClick = { showDatePicker = false }) {
                         Text("Cancel")
                     }
+                }) {
+                    DatePicker(state = datePickerState)
                 }
-            ) {
-                DatePicker(state = datePickerState)
             }
-        }
 
-        // Upper Wear Picker
-        Button(onClick = { upperWearPicker.launch("image/*") }) {
-            Text("Select Upper Wear")
-        }
-        upperWearUri?.let {
-            Image(
-                painter = rememberAsyncImagePainter(it),
-                contentDescription = "Upper Wear",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp),
-                contentScale = ContentScale.Crop
-            )
-        }
+            // Upper Wear Picker
+            Button(onClick = { upperWearPicker.launch("image/*") }) {
+                Text("Select Upper Wear")
+            }
+            upperWearUri?.let {
+                Image(
+                    painter = rememberAsyncImagePainter(it),
+                    contentDescription = "Upper Wear",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    contentScale = ContentScale.Crop
+                )
+            }
 
-        // Lower Wear Picker
-        Button(onClick = { lowerWearPicker.launch("image/*") }) {
-            Text("Select Lower Wear")
-        }
-        lowerWearUri?.let {
-            Image(
-                painter = rememberAsyncImagePainter(it),
-                contentDescription = "Lower Wear",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp),
-                contentScale = ContentScale.Crop
-            )
-        }
+            // Lower Wear Picker
+            Button(onClick = { lowerWearPicker.launch("image/*") }) {
+                Text("Select Lower Wear")
+            }
+            lowerWearUri?.let {
+                Image(
+                    painter = rememberAsyncImagePainter(it),
+                    contentDescription = "Lower Wear",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    contentScale = ContentScale.Crop
+                )
+            }
 
-        // Submit
-        Button(
-            onClick = {
-                // Save to DB or ViewModel
-            },
-            enabled = upperWearUri != null && lowerWearUri != null
-        ) {
-            Text("Save Outfit")
-        }
+            // Save Button
+            Button(
+                onClick = {
+                    val upper = upperWearUri
+                    val lower = lowerWearUri
+                    val date = formattedDate
+                    val event = selectedEvent
 
-        // Display Summary
-        if (upperWearUri != null && lowerWearUri != null) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Summary:\nDate: $formattedDate\nUpper: ${upperWearUri.toString()}\nLower: ${lowerWearUri.toString()}",
-                style = MaterialTheme.typography.bodyMedium
-            )
+                    outfitLogs.add(OutfitLog(date, event, upper, lower))
+
+                    // Clear selections
+                    upperWearUri = null
+                    lowerWearUri = null
+                    selectedDate = LocalDate.now()
+                    selectedEvent = events.first()
+
+                    // Show snackbar
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Outfit saved!")
+                    }
+                }, enabled = upperWearUri != null && lowerWearUri != null
+            ) {
+                Text("Save Outfit")
+            }
         }
     }
 }
 
+
+@Composable
+fun ProfileScreen(modifier: Modifier = Modifier, outfitLogs: List<OutfitLog>) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Saved Outfits", style = MaterialTheme.typography.headlineSmall)
+
+        outfitLogs.forEach { log ->
+            Text(
+                text = "Date: ${log.date}\nEvent: ${log.event}\nUpper: ${log.upper}\nLower: ${log.lower}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
+        }
+    }
+}
 
 fun generateTagsFromImage(
     context: Context, imageUri: Uri, onTagsReady: (List<String>) -> Unit
