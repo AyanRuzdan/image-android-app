@@ -3,6 +3,7 @@ package com.example.myapplication
 import android.content.Context
 import androidx.compose.foundation.combinedClickable
 import android.net.Uri
+import java.time.*
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import android.os.Bundle
@@ -386,9 +387,8 @@ fun TodayOutfitScreen(modifier: Modifier = Modifier) {
     val events = listOf("Office", "Gym", "Date", "Outing", "Dinner")
     var selectedEvent by remember { mutableStateOf(events.first()) }
 
-    var selectedDateTime by remember { mutableStateOf(LocalDateTime.now()) }
-
-    val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    val formattedDate = selectedDate.format(DateTimeFormatter.ISO_DATE)
 
     var upperWearUri by remember { mutableStateOf<Uri?>(null) }
     var lowerWearUri by remember { mutableStateOf<Uri?>(null) }
@@ -401,8 +401,13 @@ fun TodayOutfitScreen(modifier: Modifier = Modifier) {
         contract = ActivityResultContracts.GetContent()
     ) { uri -> if (uri != null) lowerWearUri = uri }
 
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    )
+    var showDatePicker by remember { mutableStateOf(false) }
+
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -410,8 +415,7 @@ fun TodayOutfitScreen(modifier: Modifier = Modifier) {
         Text("Log Today's Outfit", style = MaterialTheme.typography.headlineSmall)
 
         // Event Dropdown
-        ExposedDropdownMenuBox(
-            expanded = false, onExpandedChange = {}) {
+        ExposedDropdownMenuBox(expanded = false, onExpandedChange = {}) {
             var expanded by remember { mutableStateOf(false) }
             OutlinedTextField(
                 value = selectedEvent,
@@ -436,22 +440,35 @@ fun TodayOutfitScreen(modifier: Modifier = Modifier) {
             }
         }
 
-        // Date and Time
-        OutlinedTextField(
-            value = selectedDateTime.format(dateFormatter),
-            onValueChange = {},
-            label = { Text("Date & Time") },
-            readOnly = true,
-            trailingIcon = {
-                Icon(
-                    Icons.Default.Info,
-                    contentDescription = "Use current time",
-                    Modifier.clickable {
-                        selectedDateTime = LocalDateTime.now()
-                    })
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
+        // Calendar Date Picker
+        Button(onClick = { showDatePicker = true }) {
+            Text("Select Date: $formattedDate")
+        }
+
+        if (showDatePicker) {
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            selectedDate = Instant.ofEpochMilli(millis)
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                        }
+                        showDatePicker = false
+                    }) {
+                        Text("OK")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDatePicker = false }) {
+                        Text("Cancel")
+                    }
+                }
+            ) {
+                DatePicker(state = datePickerState)
+            }
+        }
 
         // Upper Wear Picker
         Button(onClick = { upperWearPicker.launch("image/*") }) {
@@ -486,13 +503,24 @@ fun TodayOutfitScreen(modifier: Modifier = Modifier) {
         // Submit
         Button(
             onClick = {
-                // TODO: Save entry
-            }, enabled = upperWearUri != null && lowerWearUri != null
+                // Save to DB or ViewModel
+            },
+            enabled = upperWearUri != null && lowerWearUri != null
         ) {
             Text("Save Outfit")
         }
+
+        // Display Summary
+        if (upperWearUri != null && lowerWearUri != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Summary:\nDate: $formattedDate\nUpper: ${upperWearUri.toString()}\nLower: ${lowerWearUri.toString()}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
     }
 }
+
 
 fun generateTagsFromImage(
     context: Context, imageUri: Uri, onTagsReady: (List<String>) -> Unit
