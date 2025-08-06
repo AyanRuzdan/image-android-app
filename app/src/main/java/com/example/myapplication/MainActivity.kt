@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
@@ -41,7 +44,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -78,10 +80,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import coil.compose.rememberAsyncImagePainter
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.google.mlkit.vision.common.InputImage
@@ -577,6 +582,8 @@ fun TodayOutfitScreen(
 
 @Composable
 fun ProfileScreen(modifier: Modifier = Modifier, outfitLogs: List<OutfitLog>) {
+    var enlargedImageUri by remember { mutableStateOf<Uri?>(null) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -586,11 +593,64 @@ fun ProfileScreen(modifier: Modifier = Modifier, outfitLogs: List<OutfitLog>) {
         Text("Saved Outfits", style = MaterialTheme.typography.headlineSmall)
 
         outfitLogs.forEach { log ->
-            Text(
-                text = "Date: ${log.date}\nEvent: ${log.event}\nUpper: ${log.upper}\nLower: ${log.lower}",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Date: ${log.date}\nEvent: ${log.event}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    listOf(log.upper, log.lower).forEach { uri ->
+                        uri?.let {
+                            Image(
+                                painter = rememberAsyncImagePainter(it),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.LightGray)
+                                    .clickable { enlargedImageUri = it }, // Tap to enlarge
+                                contentScale = ContentScale.Crop
+                            )
+                        } ?: Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.Gray), contentAlignment = Alignment.Center
+                        ) {
+                            Text("N/A", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+            }
+        }
+    }
+
+    // Fullscreen Dialog to show enlarged image
+    if (enlargedImageUri != null) {
+        Dialog(onDismissRequest = { enlargedImageUri = null }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.0f))
+                    .clickable { enlargedImageUri = null }, // Tap anywhere to dismiss
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = rememberAsyncImagePainter(enlargedImageUri),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Fit
+                )
+            }
         }
     }
 }
